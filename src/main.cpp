@@ -5,6 +5,7 @@
 
 const char* htmlPage = R""""(
 <!DOCTYPE HTML>
+<head rel='icon' href='data:,'>
 <html>
 <body style='margin:0'>
     <button 
