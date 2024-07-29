@@ -6,11 +6,7 @@
 
 // Load Wi-Fi library
 #include <WiFi.h>
-
-
-// Replace with your network credentials
-const char* ssid = "mywifi";
-const char* password = "abcd1234";
+#include "wifiCredentials.h"
 
 const char* htmlPage = R""""(
 <!DOCTYPE HTML>
