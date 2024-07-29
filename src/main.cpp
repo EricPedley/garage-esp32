@@ -1,10 +1,5 @@
-/*********
-  Rui Santos
-  Complete project details at http://randomnerdtutorials.com
-  https://raw.githubusercontent.com/RuiSantosdotme/ESP32-Course/master/code/WiFi_Web_Server_Outputs/WiFi_Web_Server_Outputs.ino
-*********/
-
-// Load Wi-Fi library
+//  Code bootstrapped from a snippet found here:
+//  https://raw.githubusercontent.com/RuiSantosdotme/ESP32-Course/master/code/WiFi_Web_Server_Outputs/WiFi_Web_Server_Outputs.ino
 #include <WiFi.h>
 #include "wifiCredentials.h"
 
