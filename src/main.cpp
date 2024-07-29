@@ -9,7 +9,7 @@ const char* htmlPage = R""""(
 <html>
 <body style='margin:0'>
     <button 
-        style='background-color: grey;width: 100vw;height: 100vh;padding:0'
+        style='background-color: grey;width: 100vw;height: 100vh;padding:0;border:0'
         onmousedown='fetch(`/ON`);document.querySelector(`button`).style.backgroundColor=`green`' 
         onmouseup='fetch(`/OFF`);document.querySelector(`button`).style.backgroundColor=`grey`'
     >
