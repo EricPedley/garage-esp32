@@ -13,12 +13,17 @@ const char* ssid = "mywifi";
 const char* password = "abcd1234";
 
 const char* htmlPage = R""""(
-        <!DOCTYPE HTML>
-        <html>
-        <h1>Remote button</h1>
-        <p><button onclick='fetch(\"/ON\")'>ON</button></p>
-        <p><button onclick='fetch(\"/OFF\")'>OFF</button></p>
-        </html>
+<!DOCTYPE HTML>
+<html>
+<body style='margin:0'>
+    <button 
+        style='background-color: grey;width: 100vw;height: 100vh;padding:0'
+        onmousedown='fetch(`/ON`);document.querySelector(`button`).style.backgroundColor=`green`' 
+        onmouseup='fetch(`/OFF`);document.querySelector(`button`).style.backgroundColor=`grey`'
+    >
+    </button>
+</body>
+</html>
 )"""";
 
 class WebServer {
