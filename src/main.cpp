@@ -1,140 +1,174 @@
-//  Code bootstrapped from a snippet found here:
-//  https://raw.githubusercontent.com/RuiSantosdotme/ESP32-Course/master/code/WiFi_Web_Server_Outputs/WiFi_Web_Server_Outputs.ino
+// bootstrapped from https://RandomNerdTutorials.com/esp32-websocket-server-arduino/
+
 #include <WiFi.h>
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
 #include "wifiCredentials.h"
 #include "blinker.hpp"
 
-const char* htmlPage = R""""(
-<!DOCTYPE HTML>
-<head rel='icon' href='data:,'>
-<html>
-<body style='margin:0'>
-    <button 
-        style='background-color: grey;width: 100vw;height: 100vh;padding:0;border:0'
-        onmousedown='fetch(`/ON`);document.querySelector(`button`).style.backgroundColor=`green`' 
-        onmouseup='fetch(`/OFF`);document.querySelector(`button`).style.backgroundColor=`grey`'
-    >
-    </button>
-</body>
-</html>
-)"""";
 
-class WebServer {
-public:
-    WebServer() : server(80) {}
-    void Init() {
-        server.begin();
-    }
-    void tick() {
-        WiFiClient client = server.available();   // Listen for incoming clients
-        if(client) {
-            handleConnection(client);
-        }
-    }
-    bool getPinState() {
-        return pinState;
-    }
-private:
-    void sendHTMLResponse(WiFiClient client) {
-        client.println("HTTP/1.1 200 OK");
-        client.println("Content-Type: text/html");
-        client.println("");
-        client.println(htmlPage);
-        client.println("");
-    }
-    void sendPlainResponse(WiFiClient client, String message) {
-        client.println("HTTP/1.1 200 OK");
-        client.println("Content-Type: text/plain");
-        client.println();
-        client.println(message);
-        client.println();
-    }
-    void handleConnection(WiFiClient client) {
-        connectionStartMS = millis();
-        while(client.connected() && !(millis() - connectionStartMS > TIMEOUT_MS)) {
-            if(client.available()) {
-                // we only care about the GET /HTTP/1.1 line
-                String request = readRequestFirstLine(client);
-                client.flush();
-                Serial.println(request);
-                if(request.indexOf("/ON") != -1) {
-                    pinState = HIGH;
-                    sendPlainResponse(client, "ON");
-                } else if(request.indexOf("/OFF") != -1) {
-                    pinState = LOW;
-                    sendPlainResponse(client, "OFF");
-                } else {
-                    sendHTMLResponse(client);
-                }
-                break;
-            }
-        }
-        client.stop();
-    }
-
-    /**
-     * Reads first line of the request. Just skips all the characters after the first \r\n
-    */
-    const char* readRequestFirstLine(WiFiClient client) {
-        static char requestBuffer[512];
-        int start = millis();
-        int i = 0;
-        while(client.connected() && millis() - start < TIMEOUT_MS) {
-            if(client.available()) {
-                char c = client.read();
-                requestBuffer[i++] = c;
-                if(c == '\n') {
-                    break;
-                }
-            }
-        }
-        requestBuffer[i] = '\0';
-        return requestBuffer;
-    }
-    WiFiServer server;
-    bool pinState = LOW;
-    int connectionStartMS = 0;
-    const static int TIMEOUT_MS = 1000;
-};
-
-WebServer webServer;
 Blinker blinker(LED_BUILTIN);
+AsyncWebServer server(80);
+AsyncWebSocket ws("/ws");
+int gpioState = LOW;
 int gpioPin = GPIO_NUM_13;
 
+const char index_html[] PROGMEM = R"rawliteral(
+<!DOCTYPE HTML>
+<html>
+<head>
+    <link rel='icon' href='data:,'>
+    <style>
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: lightgrey;
+        }
+        button {
+            background-color: lightgrey;
+            border: 2px solid black;
+            font-size: 24px;
+            border-radius: 8px;
+            text-align: center;
+            width: calc(100vw - 60px);
+            height: calc(100% - 60px);
+        }
+    </style>
+</head>
+<body>
+    <button>Tap anywhere to manipulate door</button>
+    <script>
+        var ws;
+        window.addEventListener('load', ()=>{
+            initWebSocket();
+            initButton();
+        });
+        function initWebSocket() {
+            console.log('Trying to open a WebSocket connection...');
+            ws = new WebSocket(`ws://${window.location.hostname}/ws`);
+            ws.onopen = onOpen;
+            ws.onclose = onClose;
+            ws.onmessage = onMessage;
+        }
+        function onOpen(event) {
+            console.log('Connection opened');
+        }
+        function onClose(event) {
+            console.log('Connection closed');
+            setTimeout(initWebSocket, 2000);
+        }
+        function onMessage(event) {
+            document.body.style.backgroundColor = event.data === '1' ? 'green' : 'lightgrey';
+        }
+        function initButton() {
+            const button = document.querySelector('button')
+            button.onmousedown = ()=>{
+                button.style.backgroundColor = 'green';
+                ws.send('on');
+            }
+            button.onmouseup = ()=>{
+                button.style.backgroundColor = 'lightgrey';
+                ws.send('off');
+            }
+        }
+    </script>
+</body>
+</html>
+)rawliteral";
+
+void notifyClients() {
+    ws.textAll(String(gpioState));
+}
+
+void handleWebSocketMessage(void* arg, uint8_t* data, size_t len) {
+    AwsFrameInfo* info = (AwsFrameInfo*)arg;
+    if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
+        data[len] = 0;
+        if (strcmp((char*)data, "toggle") == 0) {
+            gpioState = !gpioState;
+            notifyClients();
+        }
+        else if (strcmp((char*)data, "on") == 0) {
+            gpioState = HIGH;
+            notifyClients();
+        }
+        else if (strcmp((char*)data, "off") == 0) {
+            gpioState = LOW;
+            notifyClients();
+        }
+    }
+}
+
+void onEvent(AsyncWebSocket* server, AsyncWebSocketClient* client, AwsEventType type,
+    void* arg, uint8_t* data, size_t len) {
+    switch (type) {
+    case WS_EVT_CONNECT:
+        Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+        break;
+    case WS_EVT_DISCONNECT:
+        Serial.printf("WebSocket client #%u disconnected\n", client->id());
+        break;
+    case WS_EVT_DATA:
+        handleWebSocketMessage(arg, data, len);
+        break;
+    case WS_EVT_PONG:
+    case WS_EVT_ERROR:
+        break;
+    }
+}
+
+void initWebSocket() {
+    ws.onEvent(onEvent);
+    server.addHandler(&ws);
+}
+
+String processor(const String& var) {
+    Serial.println(var);
+    if (var == "STATE") {
+        if (gpioState) {
+            return "ON";
+        }
+        else {
+            return "OFF";
+        }
+    }
+    return "";
+}
+
 void setup() {
+    // Serial port for debugging purposes
     Serial.begin(115200);
 
-    blinker.Init();
-
     pinMode(gpioPin, OUTPUT);
-
     digitalWrite(gpioPin, LOW);
 
-    Serial.print("Connecting to ");
-    Serial.println(ssid);
+    // Connect to Wi-Fi
     WiFi.begin(ssid, password);
     while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
+        delay(1000);
+        Serial.println("Connecting to WiFi..");
     }
-    // Print local IP address and start web server
-    Serial.println("");
-    Serial.println("WiFi connected.");
-    Serial.println("IP address: ");
+
+    // Print ESP Local IP Address
     Serial.println(WiFi.localIP());
-    webServer.Init();
-    digitalWrite(LED_BUILTIN, HIGH);
-    blinker.setBlinkLength(100);
+
+    initWebSocket();
+
+    // Route for root / web page
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send_P(200, "text/html", index_html, processor);
+        });
+
+    // Start server
+    server.begin();
+    blinker.setBlinkPeriod(0);
 }
 
 void loop() {
-    webServer.tick();
-    if(webServer.getPinState() == HIGH) {
-        digitalWrite(gpioPin, HIGH);
-        blinker.setBlinkPeriod(0);
-    } else {
-        digitalWrite(gpioPin, LOW);
-        blinker.setBlinkPeriod(2000);
-    }
-    blinker.tick();
+    ws.cleanupClients();
+    digitalWrite(gpioPin, gpioState);
 }

@@ -6,6 +6,9 @@ public:
     Blinker(int pin): pin(pin) {};
     void Init();
     void tick();
+    /**
+     * @param period - period of blinking in ms (default 1000). 0 means solid on.
+    */
     void setBlinkPeriod(int period) {
         blinkPeriod = period;
     }
