@@ -11,18 +11,22 @@ void Blinker::Init() {
 }
 
 void Blinker::tick() {
+    int timeMs = millis();
     if(state==State::IN_BETWEEN_BLINKS) {
-        if(millis() - lastBlink > blinkPeriod) {
+        if(timeMs - lastPeriod > blinkPeriod) {
             state = IN_BLINK;
-            lastBlink = millis();
+            lastPeriod = timeMs;
             blinks = blinkCount;
         }
-    } else if (state==State::IN_BLINK) {
-        if(millis() - lastBlink > blinkLength) {
-            int isOn = digitalRead(pin);
+    }
+
+    // these both can run in the same function call, and it's on purpose.
+    if (state==State::IN_BLINK) {
+        if(timeMs - lastBlink > blinkLength) {
             digitalWrite(pin, !isOn);
-            lastBlink = millis();
-            if(isOn) {
+            isOn = !isOn;
+            lastBlink = timeMs;
+            if(!isOn) {
                 blinks--;
             }
             if(blinks == 0) {

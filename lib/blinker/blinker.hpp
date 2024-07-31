@@ -26,5 +26,7 @@ private:
         IN_BLINK
     } state = IN_BETWEEN_BLINKS;
     int lastBlink = 0;
+    int lastPeriod = 0;
     int blinks = 0;
+    bool isOn = false;
 };
