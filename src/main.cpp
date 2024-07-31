@@ -50,14 +50,13 @@ private:
         client.println();
     }
     void handleConnection(WiFiClient client) {
-        Serial.println("New client");
         connectionStartMS = millis();
         while(client.connected() && !(millis() - connectionStartMS > TIMEOUT_MS)) {
             if(client.available()) {
-                Serial.println("Reading characters");
-                String request = readRequest(client);
-                Serial.println(request);
+                // we only care about the GET /HTTP/1.1 line
+                String request = readRequestFirstLine(client);
                 client.flush();
+                Serial.println(request);
                 if(request.indexOf("/ON") != -1) {
                     pinState = HIGH;
                     sendPlainResponse(client, "ON");
@@ -72,22 +71,21 @@ private:
         }
         client.stop();
     }
-    const char* readRequest(WiFiClient client) {
-        static char requestBuffer[1024];
-        char buff[3];
+
+    /**
+     * Reads first line of the request. Just skips all the characters after the first \r\n
+    */
+    const char* readRequestFirstLine(WiFiClient client) {
+        static char requestBuffer[512];
         int start = millis();
         int i = 0;
         while(client.connected() && millis() - start < TIMEOUT_MS) {
             if(client.available()) {
                 char c = client.read();
                 requestBuffer[i++] = c;
-                bool end = (buff[0] == '\r') && (buff[1] == '\n') && (buff[2] == '\r') && (c == '\n');
-                if(end) {
+                if(c == '\n') {
                     break;
                 }
-                buff[0] = buff[1];
-                buff[1] = buff[2];
-                buff[2] = c;
             }
         }
         requestBuffer[i] = '\0';
