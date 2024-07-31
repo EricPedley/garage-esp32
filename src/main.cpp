@@ -72,14 +72,15 @@ private:
         }
         client.stop();
     }
-    String readRequest(WiFiClient client) {
-        String request = "";
+    const char* readRequest(WiFiClient client) {
+        static char requestBuffer[1024];
         char buff[3];
         int start = millis();
+        int i = 0;
         while(client.connected() && millis() - start < TIMEOUT_MS) {
             if(client.available()) {
                 char c = client.read();
-                request += c;
+                requestBuffer[i++] = c;
                 bool end = (buff[0] == '\r') && (buff[1] == '\n') && (buff[2] == '\r') && (c == '\n');
                 if(end) {
                     break;
@@ -89,7 +90,8 @@ private:
                 buff[2] = c;
             }
         }
-        return request;
+        requestBuffer[i] = '\0';
+        return requestBuffer;
     }
     WiFiServer server;
     bool pinState = LOW;
