@@ -2,6 +2,7 @@
 //  https://raw.githubusercontent.com/RuiSantosdotme/ESP32-Course/master/code/WiFi_Web_Server_Outputs/WiFi_Web_Server_Outputs.ino
 #include <WiFi.h>
 #include "wifiCredentials.h"
+#include "blinker.hpp"
 
 const char* htmlPage = R""""(
 <!DOCTYPE HTML>
@@ -74,7 +75,8 @@ private:
     String readRequest(WiFiClient client) {
         String request = "";
         char buff[3];
-        while(client.connected()) {
+        int start = millis();
+        while(client.connected() && millis() - start < TIMEOUT_MS) {
             if(client.available()) {
                 char c = client.read();
                 request += c;
@@ -96,15 +98,17 @@ private:
 };
 
 WebServer webServer;
+Blinker blinker(LED_BUILTIN);
+int gpioPin = GPIO_NUM_13;
 
 void setup() {
     Serial.begin(115200);
 
-    pinMode(LED_BUILTIN, OUTPUT);
-    pinMode(GPIO_NUM_5, OUTPUT);
+    blinker.Init();
 
-    digitalWrite(LED_BUILTIN, LOW);
-    digitalWrite(GPIO_NUM_5, LOW);
+    pinMode(gpioPin, OUTPUT);
+
+    digitalWrite(gpioPin, LOW);
 
     Serial.print("Connecting to ");
     Serial.println(ssid);
@@ -120,9 +124,18 @@ void setup() {
     Serial.println(WiFi.localIP());
     webServer.Init();
     digitalWrite(LED_BUILTIN, HIGH);
+    blinker.setBlinkCount(3);
+    blinker.setBlinkLength(100);
 }
 
 void loop() {
     webServer.tick();
-    digitalWrite(GPIO_NUM_5, webServer.getPinState());
+    if(webServer.getPinState() == HIGH) {
+        digitalWrite(gpioPin, HIGH);
+        blinker.setBlinkPeriod(500);
+    } else {
+        digitalWrite(gpioPin, LOW);
+        blinker.setBlinkPeriod(2000);
+    }
+    blinker.tick();
 }
