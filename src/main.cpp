@@ -124,7 +124,6 @@ void setup() {
     Serial.println(WiFi.localIP());
     webServer.Init();
     digitalWrite(LED_BUILTIN, HIGH);
-    blinker.setBlinkCount(3);
     blinker.setBlinkLength(100);
 }
 
@@ -132,7 +131,7 @@ void loop() {
     webServer.tick();
     if(webServer.getPinState() == HIGH) {
         digitalWrite(gpioPin, HIGH);
-        blinker.setBlinkPeriod(500);
+        blinker.setBlinkPeriod(0);
     } else {
         digitalWrite(gpioPin, LOW);
         blinker.setBlinkPeriod(2000);

@@ -11,6 +11,14 @@ void Blinker::Init() {
 }
 
 void Blinker::tick() {
+    if(blinkPeriod == 0) {
+        if(!isOn) {
+            digitalWrite(pin, HIGH);
+            isOn = true;
+        }
+        state = IN_BETWEEN_BLINKS;
+        return;
+    }
     int timeMs = millis();
     if(state==State::IN_BETWEEN_BLINKS) {
         if(timeMs - lastPeriod > blinkPeriod) {
