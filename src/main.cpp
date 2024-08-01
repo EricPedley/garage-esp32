@@ -10,7 +10,7 @@
 Blinker blinker(LED_BUILTIN);
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
-int gpioState = LOW;
+bool gpioState = false;
 int gpioPin = GPIO_NUM_13;
 
 const char index_html[] PROGMEM = R"rawliteral(
@@ -93,13 +93,14 @@ void handleWebSocketMessage(void* arg, uint8_t* data, size_t len) {
             notifyClients();
         }
         else if (strcmp((char*)data, "on") == 0) {
-            gpioState = HIGH;
+            gpioState = true;
             notifyClients();
         }
         else if (strcmp((char*)data, "off") == 0) {
-            gpioState = LOW;
+            gpioState = false;
             notifyClients();
         }
+        blinker.setBlinkCount(gpioState? 3 : 1);
     }
 }
 
@@ -143,6 +144,8 @@ void setup() {
     // Serial port for debugging purposes
     Serial.begin(115200);
 
+    blinker.Init();
+
     pinMode(gpioPin, OUTPUT);
     digitalWrite(gpioPin, LOW);
 
@@ -165,10 +168,12 @@ void setup() {
 
     // Start server
     server.begin();
-    blinker.setBlinkPeriod(0);
+    blinker.setBlinkPeriod(1000);
+    blinker.setBlinkLength(100);
 }
 
 void loop() {
     ws.cleanupClients();
-    digitalWrite(gpioPin, gpioState);
+    blinker.tick();
+    digitalWrite(gpioPin, !gpioState);
 }
