@@ -32,16 +32,22 @@ const char index_html[] PROGMEM = R"rawliteral(
         button {
             background-color: lightgrey;
             border: 2px solid black;
+            color: black;
             font-size: 24px;
             border-radius: 8px;
             text-align: center;
             width: calc(100vw - 60px);
             height: calc(100% - 60px);
+            user-select: none; /* supported by Chrome and Opera */
+            -webkit-user-select: none; /* Safari */
+            -khtml-user-select: none; /* Konqueror HTML */
+            -moz-user-select: none; /* Firefox */
+            -ms-user-select: none; /* Internet Explorer/Edge */
         }
     </style>
 </head>
 <body>
-    <button>Tap anywhere to manipulate door</button>
+    <button>Tap to control door</button>
     <script>
         var ws;
         window.addEventListener('load', ()=>{
@@ -67,11 +73,14 @@ const char index_html[] PROGMEM = R"rawliteral(
         }
         function initButton() {
             const button = document.querySelector('button')
-            button.onmousedown = ()=>{
+            button.ontouchstart = ()=>{
+                if (ws.readyState !== ws.OPEN) {
+                    initWebSocket();
+                }
                 button.style.backgroundColor = 'green';
                 ws.send('on');
             }
-            button.onmouseup = ()=>{
+            button.ontouchend = ()=>{
                 button.style.backgroundColor = 'lightgrey';
                 ws.send('off');
             }
