@@ -23,19 +23,25 @@ public:
 
     void tick() {
         switch (state) {
-        case OPENING:
-            if (millis() - startedOpening > 500) {
-                state = OPEN;
+            case OPENING:
+                if (millis() - startedOpening > 5000) {
+                    state = OPEN;
+                    outputPinSetActive = false;
+                } else if (millis() - startedOpening > 500) {
+                    outputPinSetActive = false;
+                } else {
+                    outputPinSetActive = true;
+                }
+                break;
+            case CLOSING:
+                if (digitalRead(inputPin) == LOW) {
+                    state = CLOSED;
+                } else {
+                    outputPinSetActive = true;
+                }
+                break;
+            default:
                 outputPinSetActive = false;
-            } else {
-                outputPinSetActive = true;
-            }
-        case CLOSING:
-            if (digitalRead(inputPin) == LOW) {
-                state = CLOSED;
-            } else {
-                outputPinSetActive = true;
-            }
         }
     }
 
@@ -43,6 +49,8 @@ public:
         if (state == CLOSED) {
             state = OPENING;
             startedOpening = millis();
+        } else {
+            ws.textAll("Door is already open or opening");
         }
     }
 
@@ -50,6 +58,8 @@ public:
         if(state == OPEN) {
             state = CLOSING;
             outputPinSetActive = true;
+        } else {
+            ws.textAll("Door is already closed or closing");
         }
     }
 
@@ -72,18 +82,13 @@ void handleWebSocketMessage(void* arg, uint8_t* data, size_t len) {
         if (strcmp((char*)data, "on") == 0) {
             outputPinSetActive = true;
             ws.textAll(String(outputPinSetActive));
-        }
-        else if (strcmp((char*)data, "off") == 0) {
+        } else if (strcmp((char*)data, "off") == 0) {
             outputPinSetActive = false;
             ws.textAll(String(outputPinSetActive));
-        }
-        else if (strcmp((char*)data, "open") == 0) {
+        } else if (strcmp((char*)data, "open") == 0) {
             openCloseHandler.open();
-            notifyClients();
-        }
-        else if (strcmp((char*)data, "close") == 0) {
+        } else if (strcmp((char*)data, "close") == 0) {
             openCloseHandler.close();
-            notifyClients();
         }
         blinker.setBlinkCount(outputPinSetActive? 3 : 1);
     }
