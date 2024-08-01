@@ -117,7 +117,7 @@ void onEvent(AsyncWebSocket* server, AsyncWebSocketClient* client, AwsEventType 
         Serial.printf("WebSocket client #%u disconnected\n", client->id());
         clients--;
         if(clients == 0) {
-            blinker.setBlinkPeriod(5000);
+            blinker.setBlinkPeriod(0);
         }
         break;
     case WS_EVT_DATA:
@@ -175,7 +175,7 @@ void setup() {
 
     // Start server
     server.begin();
-    blinker.setBlinkPeriod(5000);
+    blinker.setBlinkPeriod(0);
     blinker.setBlinkLength(100);
 }
 
