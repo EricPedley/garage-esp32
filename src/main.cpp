@@ -5,112 +5,87 @@
 #include <ESPAsyncWebServer.h>
 #include "wifiCredentials.h"
 #include "blinker.hpp"
-
+#include "indexHTML.h"
 
 Blinker blinker(LED_BUILTIN);
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
-bool gpioState = false;
-int gpioPin = GPIO_NUM_13;
+bool outputPinSetActive = false;
+int outputPin = GPIO_NUM_13;
+int inputPin = GPIO_NUM_12;
 int clients = 0;
 
-const char index_html[] PROGMEM = R"rawliteral(
-<!DOCTYPE HTML>
-<html>
-<head>
-    <link rel='icon' href='data:,'>
-    <style>
-        html, body {
-            width: 100%;
-            height: 100%;
-            margin: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background-color: lightgrey;
-        }
-        button {
-            background-color: lightgrey;
-            border: 2px solid black;
-            color: black;
-            font-size: 24px;
-            border-radius: 8px;
-            text-align: center;
-            width: calc(100vw - 60px);
-            height: calc(100% - 60px);
-            user-select: none; /* supported by Chrome and Opera */
-            -webkit-user-select: none; /* Safari */
-            -khtml-user-select: none; /* Konqueror HTML */
-            -moz-user-select: none; /* Firefox */
-            -ms-user-select: none; /* Internet Explorer/Edge */
-        }
-    </style>
-</head>
-<body>
-    <button>Tap to control door</button>
-    <script>
-        var ws;
-        window.addEventListener('load', ()=>{
-            initWebSocket();
-            initButton();
-        });
-        function initWebSocket() {
-            console.log('Trying to open a WebSocket connection...');
-            ws = new WebSocket(`ws://${window.location.hostname}/ws`);
-            ws.onopen = onOpen;
-            ws.onclose = onClose;
-            ws.onmessage = onMessage;
-        }
-        function onOpen(event) {
-            console.log('Connection opened');
-        }
-        function onClose(event) {
-            console.log('Connection closed');
-            setTimeout(initWebSocket, 2000);
-        }
-        function onMessage(event) {
-            document.body.style.backgroundColor = event.data === '1' ? 'green' : 'lightgrey';
-        }
-        function initButton() {
-            const button = document.querySelector('button')
-            button.ontouchstart = ()=>{
-                if (ws.readyState !== ws.OPEN) {
-                    initWebSocket();
-                }
-                button.style.backgroundColor = 'green';
-                ws.send('on');
-            }
-            button.ontouchend = ()=>{
-                button.style.backgroundColor = 'lightgrey';
-                ws.send('off');
-            }
-        }
-    </script>
-</body>
-</html>
-)rawliteral";
+class OpenCloseHandler {
+public:
+    void Init() {
+        state = digitalRead(inputPin) == LOW ? CLOSED : OPEN;
+    }
 
-void notifyClients() {
-    ws.textAll(String(gpioState));
-}
+    void tick() {
+        switch (state) {
+        case OPENING:
+            if (millis() - startedOpening > 500) {
+                state = OPEN;
+                outputPinSetActive = false;
+            } else {
+                outputPinSetActive = true;
+            }
+        case CLOSING:
+            if (digitalRead(inputPin) == LOW) {
+                state = CLOSED;
+            } else {
+                outputPinSetActive = true;
+            }
+        }
+    }
+
+    void open() {
+        if (state == CLOSED) {
+            state = OPENING;
+            startedOpening = millis();
+        }
+    }
+
+    void close() {
+        if(state == OPEN) {
+            state = CLOSING;
+            outputPinSetActive = true;
+        }
+    }
+
+private:
+    enum State {
+        OPENING,
+        CLOSING,
+        OPEN,
+        CLOSED
+    } state;
+    int startedOpening = 0;
+};
+
+OpenCloseHandler openCloseHandler;
 
 void handleWebSocketMessage(void* arg, uint8_t* data, size_t len) {
     AwsFrameInfo* info = (AwsFrameInfo*)arg;
     if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
         data[len] = 0;
-        if (strcmp((char*)data, "toggle") == 0) {
-            gpioState = !gpioState;
-            notifyClients();
-        }
-        else if (strcmp((char*)data, "on") == 0) {
-            gpioState = true;
-            notifyClients();
+        if (strcmp((char*)data, "on") == 0) {
+            outputPinSetActive = true;
+            ws.textAll(String(outputPinSetActive));
         }
         else if (strcmp((char*)data, "off") == 0) {
-            gpioState = false;
+            outputPinSetActive = false;
+            ws.textAll(String(outputPinSetActive));
+        }
+        else if (strcmp((char*)data, "open") == 0) {
+            openCloseHandler.open();
             notifyClients();
         }
-        blinker.setBlinkCount(gpioState? 3 : 1);
+        else if (strcmp((char*)data, "close") == 0) {
+            openCloseHandler.close();
+            notifyClients();
+        }
+        blinker.setBlinkCount(outputPinSetActive? 3 : 1);
     }
 }
 
@@ -146,7 +121,7 @@ void initWebSocket() {
 String processor(const String& var) {
     Serial.println(var);
     if (var == "STATE") {
-        if (gpioState) {
+        if (outputPinSetActive) {
             return "ON";
         }
         else {
@@ -156,14 +131,16 @@ String processor(const String& var) {
     return "";
 }
 
+
 void setup() {
     // Serial port for debugging purposes
     Serial.begin(115200);
 
     blinker.Init();
 
-    pinMode(gpioPin, OUTPUT);
-    digitalWrite(gpioPin, HIGH);
+    pinMode(outputPin, OUTPUT);
+    pinMode(inputPin, INPUT);
+    digitalWrite(outputPin, HIGH);
 
     // Connect to Wi-Fi
     WiFi.begin(ssid, password);
@@ -191,5 +168,6 @@ void setup() {
 void loop() {
     ws.cleanupClients();
     blinker.tick();
-    digitalWrite(gpioPin, !gpioState);
+    openCloseHandler.tick();
+    digitalWrite(outputPin, !outputPinSetActive);
 }
