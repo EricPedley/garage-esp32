@@ -12,6 +12,7 @@ AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 bool gpioState = false;
 int gpioPin = GPIO_NUM_13;
+int clients = 0;
 
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE HTML>
@@ -109,9 +110,15 @@ void onEvent(AsyncWebSocket* server, AsyncWebSocketClient* client, AwsEventType 
     switch (type) {
     case WS_EVT_CONNECT:
         Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+        clients++;
+        blinker.setBlinkPeriod(1000);
         break;
     case WS_EVT_DISCONNECT:
         Serial.printf("WebSocket client #%u disconnected\n", client->id());
+        clients--;
+        if(clients == 0) {
+            blinker.setBlinkPeriod(5000);
+        }
         break;
     case WS_EVT_DATA:
         handleWebSocketMessage(arg, data, len);
@@ -168,7 +175,7 @@ void setup() {
 
     // Start server
     server.begin();
-    blinker.setBlinkPeriod(1000);
+    blinker.setBlinkPeriod(5000);
     blinker.setBlinkLength(100);
 }
 
