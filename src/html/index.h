@@ -14,6 +14,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             align-items: center;
             justify-content: center;
             background-color: lightgrey;
+            flex-direction: column;
         }
         button {
             background-color: lightgrey;
@@ -22,8 +23,9 @@ const char index_html[] PROGMEM = R"rawliteral(
             font-size: 24px;
             border-radius: 8px;
             text-align: center;
-            width: calc(100vw - 60px);
-            height: calc(100% - 60px);
+            width: calc(33vw - 60px);
+            height: calc(33% - 60px);
+            margin-bottom: 20px;
             user-select: none; /* supported by Chrome and Opera */
             -webkit-user-select: none; /* Safari */
             -khtml-user-select: none; /* Konqueror HTML */
@@ -33,7 +35,9 @@ const char index_html[] PROGMEM = R"rawliteral(
     </style>
 </head>
 <body>
-    <button>Tap to control door</button>
+    <button id = 'open'>Open</button>
+    <button id = 'close'>Close</button>
+    <button onclick="window.location.href = '/override'">Manual Control</button>
     <script>
         var ws;
         window.addEventListener('load', ()=>{
@@ -55,20 +59,38 @@ const char index_html[] PROGMEM = R"rawliteral(
             setTimeout(initWebSocket, 2000);
         }
         function onMessage(event) {
-            document.body.style.backgroundColor = event.data === '1' ? 'green' : 'lightgrey';
+            const openButton = document.querySelector('#open');
+            const closeButton = document.querySelector('#close');
+            if(event.data === 'close') {
+                closeButton.style.backgroundColor = 'green';
+            } else if(event.data === 'open') {
+                openButton.style.backgroundColor = 'green';
+            } else if(event.data === 'opened') {
+                openButton.style.backgroundColor = 'gray'; 
+                closeButton.style.backgroundColor = 'lightgrey'; 
+            } else if(event.data === 'closed') {
+                closeButton.style.backgroundColor = 'gray'; 
+                openButton.style.backgroundColor = 'lightgrey'; 
+            } else {
+                alert(event.data);
+            }
         }
         function initButton() {
-            const button = document.querySelector('button')
-            button.ontouchstart = ()=>{
+            const openButton = document.querySelector('#open');
+            const closeButton = document.querySelector('#close');
+            openButton.onclick = ()=>{
                 if (ws.readyState !== ws.OPEN) {
                     initWebSocket();
                 }
-                button.style.backgroundColor = 'green';
-                ws.send('on');
+                openButton.style.backgroundColor = 'yellow';
+                ws.send('open');
             }
-            button.ontouchend = ()=>{
-                button.style.backgroundColor = 'lightgrey';
-                ws.send('off');
+            closeButton.onclick = ()=>{
+                if (ws.readyState !== ws.OPEN) {
+                    initWebSocket();
+                }
+                closeButton.style.backgroundColor = 'yellow';
+                ws.send('close');
             }
         }
     </script>

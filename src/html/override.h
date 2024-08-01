@@ -14,6 +14,7 @@ const char override_html[] PROGMEM = R"rawliteral(
             align-items: center;
             justify-content: center;
             background-color: lightgrey;
+            flex-direction: column;
         }
         button {
             background-color: lightgrey;
@@ -22,8 +23,9 @@ const char override_html[] PROGMEM = R"rawliteral(
             font-size: 24px;
             border-radius: 8px;
             text-align: center;
-            width: calc(100vw - 60px);
-            height: calc(100% - 60px);
+            width: calc(50vw - 60px);
+            height: calc(50% - 60px);
+            margin-bottom: 20px;
             user-select: none; /* supported by Chrome and Opera */
             -webkit-user-select: none; /* Safari */
             -khtml-user-select: none; /* Konqueror HTML */
@@ -33,7 +35,8 @@ const char override_html[] PROGMEM = R"rawliteral(
     </style>
 </head>
 <body>
-    <button>Tap to control door</button>
+    <button>Tap/hold to control door</button>
+    <button onclick="window.location.href = '/'">Toggle buttons</button>
     <script>
         var ws;
         window.addEventListener('load', ()=>{
@@ -55,7 +58,16 @@ const char override_html[] PROGMEM = R"rawliteral(
             setTimeout(initWebSocket, 2000);
         }
         function onMessage(event) {
-            document.body.style.backgroundColor = event.data === '1' ? 'green' : 'lightgrey';
+            const button = document.querySelector('button')
+            if(event.data === '1') {
+                button.style.backgroundColor = 'green';
+            } else if(event.data === '0') {
+                button.style.backgroundColor = 'lightgrey';
+            } else if (['open', 'close', 'opened', 'closed'].includes(event.data)) {
+                // do nothing. These are status messages we don't display on this page.
+            } else {
+                alert(event.data);
+            }
         }
         function initButton() {
             const button = document.querySelector('button')
@@ -63,11 +75,11 @@ const char override_html[] PROGMEM = R"rawliteral(
                 if (ws.readyState !== ws.OPEN) {
                     initWebSocket();
                 }
-                button.style.backgroundColor = 'green';
+                button.style.backgroundColor = 'yellow';
                 ws.send('on');
             }
             button.ontouchend = ()=>{
-                button.style.backgroundColor = 'lightgrey';
+                button.style.backgroundColor = 'orange';
                 ws.send('off');
             }
         }

@@ -12,12 +12,20 @@ Blinker blinker(LED_BUILTIN);
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 bool outputPinSetActive = false;
+bool manualControl = false;
+bool manualPinSetActive = false;
 int outputPin = GPIO_NUM_13;
 int inputPin = GPIO_NUM_12;
 int clients = 0;
 
 class OpenCloseHandler {
 public:
+    enum State {
+        OPENING,
+        CLOSING,
+        OPEN,
+        CLOSED
+    };
     void Init() {
         state = digitalRead(inputPin) == LOW ? CLOSED : OPEN;
     }
@@ -28,6 +36,7 @@ public:
                 if (millis() - startedOpening > 5000) {
                     state = OPEN;
                     outputPinSetActive = false;
+                    ws.textAll("opened");
                 } else if (millis() - startedOpening > 500) {
                     outputPinSetActive = false;
                 } else {
@@ -35,8 +44,9 @@ public:
                 }
                 break;
             case CLOSING:
-                if (digitalRead(inputPin) == LOW) {
+                if (digitalRead(inputPin) == LOW || millis() - startedClosing > 20000) {
                     state = CLOSED;
+                    ws.textAll("closed");
                 } else {
                     outputPinSetActive = true;
                 }
@@ -50,6 +60,7 @@ public:
         if (state == CLOSED) {
             state = OPENING;
             startedOpening = millis();
+            ws.textAll("open");
         } else {
             ws.textAll("Door is already open or opening");
         }
@@ -59,19 +70,21 @@ public:
         if(state == OPEN) {
             state = CLOSING;
             outputPinSetActive = true;
+            startedClosing = millis();
+            ws.textAll("close");
         } else {
             ws.textAll("Door is already closed or closing");
         }
     }
 
+    State getState() {
+        return state;
+    }
+
 private:
-    enum State {
-        OPENING,
-        CLOSING,
-        OPEN,
-        CLOSED
-    } state;
+    State state;
     int startedOpening = 0;
+    int startedClosing = 0;
 };
 
 OpenCloseHandler openCloseHandler;
@@ -81,17 +94,16 @@ void handleWebSocketMessage(void* arg, uint8_t* data, size_t len) {
     if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
         data[len] = 0;
         if (strcmp((char*)data, "on") == 0) {
-            outputPinSetActive = true;
-            ws.textAll(String(outputPinSetActive));
+            manualPinSetActive = true;
+            ws.textAll(String(manualPinSetActive));
         } else if (strcmp((char*)data, "off") == 0) {
-            outputPinSetActive = false;
-            ws.textAll(String(outputPinSetActive));
+            manualPinSetActive = false;
+            ws.textAll(String(manualPinSetActive));
         } else if (strcmp((char*)data, "open") == 0) {
             openCloseHandler.open();
         } else if (strcmp((char*)data, "close") == 0) {
             openCloseHandler.close();
         }
-        blinker.setBlinkCount(outputPinSetActive? 3 : 1);
     }
 }
 
@@ -100,6 +112,11 @@ void onEvent(AsyncWebSocket* server, AsyncWebSocketClient* client, AwsEventType 
     switch (type) {
     case WS_EVT_CONNECT:
         Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+        if(openCloseHandler.getState() == OpenCloseHandler::OPEN) {
+            client->text("opened");
+        } else if(openCloseHandler.getState() == OpenCloseHandler::CLOSED) {
+            client->text("closed");
+        }
         clients++;
         blinker.setBlinkPeriod(1000);
         break;
@@ -127,7 +144,7 @@ void initWebSocket() {
 String processor(const String& var) {
     Serial.println(var);
     if (var == "STATE") {
-        if (outputPinSetActive) {
+        if (manualPinSetActive) {
             return "ON";
         }
         else {
@@ -162,9 +179,11 @@ void setup() {
 
     // Route for root / web page
     server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
+        manualControl = false;
         request->send_P(200, "text/html", index_html, processor);
         });
     server.on("/override", HTTP_GET, [](AsyncWebServerRequest* request) {
+        manualControl = true;
         request->send_P(200, "text/html", override_html, processor);
         });
 
@@ -176,7 +195,8 @@ void setup() {
 
 void loop() {
     ws.cleanupClients();
+    blinker.setBlinkCount(outputPinSetActive? 3 : 1);
     blinker.tick();
     openCloseHandler.tick();
-    digitalWrite(outputPin, !outputPinSetActive);
+    digitalWrite(outputPin, !(manualControl? manualPinSetActive : outputPinSetActive));
 }
