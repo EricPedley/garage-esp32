@@ -5,7 +5,8 @@
 #include <ESPAsyncWebServer.h>
 #include "wifiCredentials.h"
 #include "blinker.hpp"
-#include "indexHTML.h"
+#include "html/index.h"
+#include "html/override.h"
 
 Blinker blinker(LED_BUILTIN);
 AsyncWebServer server(80);
@@ -162,6 +163,9 @@ void setup() {
     // Route for root / web page
     server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send_P(200, "text/html", index_html, processor);
+        });
+    server.on("/override", HTTP_GET, [](AsyncWebServerRequest* request) {
+        request->send_P(200, "text/html", override_html, processor);
         });
 
     // Start server
