@@ -154,7 +154,7 @@ void setup() {
     blinker.Init();
 
     pinMode(gpioPin, OUTPUT);
-    digitalWrite(gpioPin, LOW);
+    digitalWrite(gpioPin, HIGH);
 
     // Connect to Wi-Fi
     WiFi.begin(ssid, password);
